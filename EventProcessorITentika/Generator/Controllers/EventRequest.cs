@@ -1,4 +1,4 @@
-﻿using Entities;
+﻿using Context.Entities;
 
 namespace Generator.Controllers;
 

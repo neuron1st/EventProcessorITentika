@@ -1,4 +1,4 @@
-﻿using Entities;
+﻿using Context.Entities;
 using Generator.Services;
 using Microsoft.AspNetCore.Mvc;
 
@@ -22,7 +22,7 @@ public class EventController : ControllerBase
         {
             Id = Guid.NewGuid(),
             Type = request.Type,
-            Time = DateTime.Now,
+            Time = DateTime.UtcNow,
         };
         await _eventGeneratorService.SendEventToProcessorAsync(newEvent);
         return Ok(newEvent);

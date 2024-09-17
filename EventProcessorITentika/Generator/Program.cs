@@ -2,6 +2,7 @@ using Generator.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Services.AddHttpClient();
 builder.Services.AddSingleton<EventGeneratorService>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<EventGeneratorService>());
 builder.Services.AddControllers();
