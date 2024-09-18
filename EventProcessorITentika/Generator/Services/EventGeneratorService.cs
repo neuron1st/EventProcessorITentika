@@ -6,13 +6,16 @@ public class EventGeneratorService : BackgroundService
 {
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly IServiceProvider _serviceProvider;
+    private readonly ILogger<EventGeneratorService> _logger;
+
     private readonly Random _random = new Random();
     private const int IntervalSeconds = 2;
 
-    public EventGeneratorService(IServiceProvider serviceProvider, IHttpClientFactory httpClientFactory)
+    public EventGeneratorService(IServiceProvider serviceProvider, IHttpClientFactory httpClientFactory, ILogger<EventGeneratorService> logger)
     {
         _httpClientFactory = httpClientFactory;
         _serviceProvider = serviceProvider;
+        _logger = logger;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -30,7 +33,7 @@ public class EventGeneratorService : BackgroundService
             }
             catch (Exception ex)
             {
-                Console.WriteLine("Error sending event to processor");
+                _logger.LogError(ex, "Error sending event to processor. Event Id: {EventId}", newEvent.Id);
             }
         }
     }
@@ -53,16 +56,15 @@ public class EventGeneratorService : BackgroundService
             var client = _httpClientFactory.CreateClient();
             var response = await client.PostAsJsonAsync("https://localhost:5001/api/Incident/events", newEvent);
             response.EnsureSuccessStatusCode();
-            //Console.WriteLine($"Send event: Id = {newEvent.Id}, Type = {newEvent.Type}, Time = {newEvent.Time}");
-
+            _logger.LogInformation("Sent event: Id = {EventId}, Type = {EventType}, Time = {EventTime}", newEvent.Id, newEvent.Type, newEvent.Time);
         }
         catch (HttpRequestException ex)
         {
-            Console.WriteLine("Error sending request to processor");
+            _logger.LogError(ex, "Error sending request to processor. Event Id: {EventId}", newEvent.Id);
         }
         catch (Exception ex)
         {
-            Console.WriteLine("Unexpected error occurred");
+            _logger.LogError(ex, "Unexpected error occurred while sending event. Event Id: {EventId}", newEvent.Id);
         }
     }
 }

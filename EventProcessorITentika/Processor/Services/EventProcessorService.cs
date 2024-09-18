@@ -9,14 +9,16 @@ namespace Processor.Services
     public class EventProcessorService : BackgroundService
     {
         private readonly IDbContextFactory<ProcessorDbContext> _contextFactory;
+        private readonly ILogger<EventProcessorService> _logger;
 
         private readonly Channel<Event> _eventChannel = Channel.CreateUnbounded<Event>();
         private readonly ConcurrentQueue<(Event, DateTime)> _type2Events = new ConcurrentQueue<(Event, DateTime)>();
         private readonly TimeSpan _compositeTemplateTimeLimit = TimeSpan.FromSeconds(20);
 
-        public EventProcessorService(IDbContextFactory<ProcessorDbContext> contextFactory)
+        public EventProcessorService(IDbContextFactory<ProcessorDbContext> contextFactory, ILogger<EventProcessorService> logger)
         {
             _contextFactory = contextFactory;
+            _logger = logger;
         }
         
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -45,7 +47,7 @@ namespace Processor.Services
 
             if (_type2Events.TryPeek(out var type2Event) && (DateTime.UtcNow - type2Event.Item2 < _compositeTemplateTimeLimit))
             {
-                await CreateIncident(IncidentTypeEnum.Type2, evt, type2Event.Item1);
+                await CreateIncident(IncidentTypeEnum.Type2, type2Event.Item1, evt);
                 _type2Events.TryDequeue(out _);
             }
             else
@@ -69,20 +71,27 @@ namespace Processor.Services
 
         private async Task CreateIncident(IncidentTypeEnum type, params Event[] events)
         {
-            var incident = new Incident
+            try
             {
-                Id = Guid.NewGuid(),
-                Type = type,
-                Time = DateTime.UtcNow,
-                Events = events.ToList()
-            };
+                var incident = new Incident
+                {
+                    Id = Guid.NewGuid(),
+                    Type = type,
+                    Time = DateTime.UtcNow,
+                    Events = events.ToList()
+                };
 
-            using var context = await _contextFactory.CreateDbContextAsync();
+                using var context = await _contextFactory.CreateDbContextAsync();
 
-            context.Incidents.Add(incident);
-            await context.SaveChangesAsync();
+                context.Incidents.Add(incident);
+                await context.SaveChangesAsync();
 
-            //Console.WriteLine($"Created incident: Id = {incident.Id}, Type = {incident.Type}, Time = {incident.Time}");
+                _logger.LogInformation("Created incident: Id = {IncidentId}, Type = {IncidentType}, Time = {IncidentTime}", incident.Id, incident.Type, incident.Time);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error creating incident with type {IncidentType}", type);
+            }
         }
 
         public async Task<List<Incident>> GetIncidents(int offset, int limit)
