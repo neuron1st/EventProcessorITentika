@@ -1,15 +1,17 @@
-﻿using Entities;
+﻿using Context.Entities;
 
 namespace Generator.Services;
 
 public class EventGeneratorService : BackgroundService
 {
+    private readonly IHttpClientFactory _httpClientFactory;
     private readonly IServiceProvider _serviceProvider;
     private readonly Random _random = new Random();
     private const int IntervalSeconds = 2;
 
-    public EventGeneratorService(IServiceProvider serviceProvider)
+    public EventGeneratorService(IServiceProvider serviceProvider, IHttpClientFactory httpClientFactory)
     {
+        _httpClientFactory = httpClientFactory;
         _serviceProvider = serviceProvider;
     }
 
@@ -22,7 +24,14 @@ public class EventGeneratorService : BackgroundService
 
             var newEvent = GenerateEvent();
 
-            await SendEventToProcessorAsync(newEvent);
+            try
+            {
+                await SendEventToProcessorAsync(newEvent);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Error sending event to processor");
+            }
         }
     }
 
@@ -39,8 +48,21 @@ public class EventGeneratorService : BackgroundService
 
     public async Task SendEventToProcessorAsync(Event newEvent)
     {
-        Console.WriteLine($"Send event: Id = {newEvent.Id}, Type = {newEvent.Type}, Time = {newEvent.Time}");
+        try
+        {
+            var client = _httpClientFactory.CreateClient();
+            var response = await client.PostAsJsonAsync("https://localhost:5001/api/Incident/events", newEvent);
+            response.EnsureSuccessStatusCode();
+            //Console.WriteLine($"Send event: Id = {newEvent.Id}, Type = {newEvent.Type}, Time = {newEvent.Time}");
 
-        await Task.Delay(500);
+        }
+        catch (HttpRequestException ex)
+        {
+            Console.WriteLine("Error sending request to processor");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("Unexpected error occurred");
+        }
     }
 }
